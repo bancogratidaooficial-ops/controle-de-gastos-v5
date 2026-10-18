@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CONTROLE DE GASTOS v5 - IMPORTA V3</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0a0a0a;color:#fff;font-family:Arial;padding:10px}
+.header{background:#ffcc00;color:#000;padding:14px;border-radius:16px;text-align:center;font-weight:900;font-size:18px}
+.cards{display:flex;gap:8px;margin:12px 0}
+.card{flex:1;background:#1a1a1a;border-radius:12px;padding:10px;text-align:center;font-weight:900}
+.entradas{color:#00ff66}.saidas{color:#ff4444}.saldo{color:#ffcc00}
+.form{background:#1a1a1a;border-radius:16px;padding:12px}
+select,input{width:100%;padding:14px;border-radius:12px;border:1px solid #333;background:#000;color:#fff;margin-top:8px}
+.row{display:flex;gap:8px}.row input{flex:1}
+.btn{width:100%;background:#ffcc00;color:#000;border:0;padding:16px;border-radius:14px;font-weight:900;margin-top:12px}
+.btn-green{background:#00ff88;color:#000}.btn-blue{background:#1a73e8;color:#fff}
+.item{background:#141414;border-left:4px solid #ffcc00;border-radius:12px;padding:10px;margin-top:8px;display:flex;justify-content:space-between;align-items:center}
+.item small{color:#999;display:block;font-size:11px}
+.trash{background:#2a2a2a;border:0;padding:8px 12px;border-radius:10px}
+</style>
+</head>
+<body>
+
+<div class="header">💰 CONTROLE DE GASTOS v5 - IMPORTA V3 🔥</div>
+
+<div class="cards">
+<div class="card">Entradas <b class="entradas" id="entradas">R$ 0,00</b></div>
+<div class="card">Saídas <b class="saidas" id="saidas">R$ 0,00</b></div>
+<div class="card">Saldo <b class="saldo" id="saldo">R$ 0,00</b></div>
+</div>
+
+<div class="form">
+<button class="btn btn-blue" onclick="importarAntigos()">📥 IMPORTAR GASTOS ANTIGOS DA V3 (clique aqui 1 vez)</button>
+
+<select id="tipo"><option>📤 Gastei</option><option>📥 Recebi</option></select>
+<select id="pessoa"><option>Aline Esposa</option><option>Eu</option><option>Casa</option><option>Moto</option></select>
+<input id="desc" placeholder="Descrição (Ex: Uber, Moto, Pizza)">
+<input id="valor" type="number" placeholder="Valor (Ex: 20)">
+
+<div class="row">
+<input id="dataGasto" type="date">
+<input id="horaGasto" type="time">
+</div>
+<p style="color:#888;font-size:11px;margin:4px">📅 Data &nbsp;&nbsp; ⏰ Hora - já vem preenchido com agora</p>
+
+<button class="btn" onclick="salvar()">💾 LANÇAMENTO SALVAR</button>
+</div>
+
+<div id="lista" style="margin-top:12px"></div>
+
+<script>
+let gastos=JSON.parse(localStorage.getItem('gastos_v5')||'[]');
+
+function initDataHora(){
+let agora=new Date();
+document.getElementById('dataGasto').valueAsDate=agora;
+document.getElementById('horaGasto').value=agora.toTimeString().slice(0,5);
+}
+initDataHora();
+
+// FUNÇÃO QUE IMPORTA DA V3
+function importarAntigos(){
+// Procura em todas as chaves possíveis da V3
+let chaves=['gastos','gastos_v3','gastos_v2','controleGastos','listaGastos'];
+let achados=[];
+for(let chave of chaves){
+let dados=localStorage.getItem(chave);
+if(dados){
+try{
+let arr=JSON.parse(dados);
+if(Array.isArray(arr) && arr.length>0){
+achados=achados.concat(arr);
+}
+}catch(e){}
+}
+}
+
+if(achados.length===0){
+alert('Não achei gastos da V3 nesse celular. Se você tem print, me manda que eu importo manual.');
+return;
+}
+
+let importados=0;
+achados.forEach(g=>{
+// Evita duplicar
+if(gastos.find(x=>x.id===g.id)) return;
+
+// Tenta extrair data que estava na descrição tipo [Uber] 18/10/2026
+let dataExtraida='', descLimpa=g.desc||g.descricao||g.nome||'Sem nome';
+let matchData=descLimpa.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
+if(matchData){
+let partes=matchData[1].split('/');
+dataExtraida=`${partes[2]}-${partes[1].padStart(2,'0')}-${partes[0].padStart(2,'0')}`;
+descLimpa=descLimpa.replace(matchData[1],'').replace(/\[|\]/g,'').trim();
+}
+
+let novo={
+id:g.id||Date.now()+Math.random(),
+tipo:g.tipo|| (g.valor<0?'📤 Gastei':'📤 Gastei'),
+pessoa:g.pessoa||g.categoria||'Aline Esposa',
+desc:descLimpa,
+valor:Math.abs(parseFloat(g.valor||g.valorGasto||0)),
+data:dataExtraida || new Date().toISOString().split('T')[0],
+hora:g.hora|| new Date().toTimeString().slice(0,5)
+};
+gastos.push(novo);
+importados++;
+});
+
+gastos.sort((a,b)=>b.id-a.id);
+localStorage.setItem('gastos_v5',JSON.stringify(gastos));
+render();
+alert(`✅ Importei ${importados} gastos da V3! Agora com data e hora separados.`);
+}
+
+function salvar(){
+let tipo=document.getElementById('tipo').value;
+let pessoa=document.getElementById('pessoa').value;
+let desc=document.getElementById('desc').value||'Sem descrição';
+let valor=parseFloat(document.getElementById('valor').value);
+let data=document.getElementById('dataGasto').value;
+let hora=document.getElementById('horaGasto').value;
+if(!valor){alert('Digite o valor');return}
+gastos.unshift({tipo,pessoa,desc,valor,data,hora,id:Date.now()});
+localStorage.setItem('gastos_v5',JSON.stringify(gastos));
+document.getElementById('desc').value='';document.getElementById('valor').value='';
+initDataHora(); render();
+}
+
+function render(){
+let ent=0,sai=0,html='';
+gastos.forEach(g=>{
+if(g.tipo.includes('Recebi')) ent+=g.valor; else sai+=g.valor;
+let dataBr=g.data?g.data.split('-').reverse().join('/'):'';
+html+=`<div class="item"><div><b>${g.desc} R$ ${g.valor.toFixed(2)}</b><small>${g.pessoa} • 📅 ${dataBr} ⏰ ${g.hora}</small></div><button class="trash" onclick="del(${g.id})">🗑️</button></div>`;
+});
+document.getElementById('lista').innerHTML=html;
+document.getElementById('entradas').innerText=`R$ ${ent.toFixed(2)}`;
+document.getElementById('saidas').innerText=`R$ ${sai.toFixed(2)}`;
+document.getElementById('saldo').innerText=`R$ ${(ent-sai).toFixed(2)}`;
+}
+function del(id){gastos=gastos.filter(g=>g.id!==id);localStorage.setItem('gastos_v5',JSON.stringify(gastos));render();}
+render();
+</script>
+</body>
+</html>
